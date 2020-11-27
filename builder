@@ -2,16 +2,20 @@
 set -e
 umask 0022
 export LANG="C"
-sudo pacman -Syw --noconfirm --cachedir ./packages/ $(cat repo_mirror_packages)
-repo-add ./packages/custom.db.tar.gz ./packages/* | true
-
-if [! -d archlive ]; then
-	mkdir archlive
+#sudo pacman -Syw --noconfirm --cachedir ./packages/ $(cat packages.repo)
+#sudo repo-add -R ./packages/custom.db.tar.gz ./packages/* || true
+if [ -d out ]; then 
+	sudo rm -rf out
 fi
-cp -r /usr/share/archiso/configs/releng/ archlive
-tee -a archlive/packages.x86_64 << EOF_PACKAGES
-tmux
-EOF_PACKAGES
+if [ -d work ]; then 
+	sudo rm -rf work
+fi
+if [ -d archlive ]; then 
+	sudo rm -rf archlive
+fi
+mkdir archlive
+cp -r /usr/share/archiso/configs/releng/* archlive/
+
 
 # tee -a archlive/pacman.conf << EOF_PAC_CONF
 # [multilib]
@@ -39,5 +43,7 @@ users:x:100:johns
 johns:x:1000:
 EOF_GROUPS
 
+cp packages.iso archlive/packages.x86_64
+cp pacman.conf archlive/pacman.conf
 sudo chown -R johns:johns packages
 sudo mkarchiso -v -w ./work -o ./out $PWD/archlive -C $PWD/pacman.conf
