@@ -27,3 +27,5 @@ echo "root:root"|chpasswd
 
 # Enable ssh
 systemctl enable sshd.service
+
+pacman -Sy

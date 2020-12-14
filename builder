@@ -16,10 +16,14 @@ cp -r /usr/share/archiso/configs/releng/* archlive/
 
 
 cp packages.x86_64 archlive/packages.x86_64
-cp pacman.conf archlive/pacman.conf
 cp customize_airootfs.sh archlive/airootfs/root/
-cp installer.sh archlive/airootfs/root/
-cp tmux.conf archlive/airootfs/root/.tmux.conf
+cp packages.x86_64 archlive/airootfs/root/
+cp pacman.conf     archlive/pacman.conf
+cp pacman.conf     archlive/airootfs/root/
+cp installer.sh    archlive/airootfs/root/
+cp tmux.conf       archlive/airootfs/root/.tmux.conf
+#rsync -avr packages archlive/airootfs/root/
+mkdir -p archlive/airootfs/etc/skel
 cp tmux.conf archlive/airootfs/etc/skel/.tmux.conf
 chmod +x archlive/airootfs/root/customize_airootfs.sh
 #sudo chown -R johns:johns packages
