@@ -27,5 +27,5 @@ mkdir -p archlive/airootfs/etc/skel
 cp tmux.conf archlive/airootfs/etc/skel/.tmux.conf
 chmod +x archlive/airootfs/root/customize_airootfs.sh
 #sudo chown -R johns:johns packages
-#sudo mkarchiso -v -w ./work -o ./out $PWD/archlive -C $PWD/pacman.conf
-sudo mkarchiso -v -w ./work -o ./out $PWD/archlive 
+sudo mkarchiso -v -w ./work -o ./out $PWD/archlive -C $PWD/pacman.conf
+#sudo mkarchiso -v -w ./work -o ./out $PWD/archlive 
