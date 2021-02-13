@@ -21,8 +21,26 @@ cp packages.x86_64 archlive/airootfs/root/
 cp pacman.conf     archlive/pacman.conf
 cp pacman.conf     archlive/airootfs/root/
 cp installer.sh    archlive/airootfs/root/
+cp dtest.sh        archlive/airootfs/root/
+cp alez.sh         archlive/airootfs/root/
+chmod +x archlive/airootfs/root/installer.sh
+chmod +x archlive/airootfs/root/dtest.sh
+chmod +x archlive/airootfs/root/alez.sh
 cp tmux.conf       archlive/airootfs/root/.tmux.conf
-#rsync -avr packages archlive/airootfs/root/
+YAY=$(which yay)
+if [ 0 -eq $? ]; then
+	cp "$YAY" archlive/airootfs/root/
+	chmod 755 archlive/airootfs/root/yay
+	chmod +x archlive/airootfs/root/yay
+else
+	echo "yay not installed on host."
+fi
+if [ ! -d  archlive/airootfs/opt/packages/ ] ; then
+	mkdir -p archlive/airootfs/opt/packages/
+fi
+echo "Copying repo to install medium"
+#mkdir -p archlive/airootfs/opt/
+#rsync -ar packages archlive/airootfs/opt/
 mkdir -p archlive/airootfs/etc/skel
 cp tmux.conf archlive/airootfs/etc/skel/.tmux.conf
 chmod +x archlive/airootfs/root/customize_airootfs.sh

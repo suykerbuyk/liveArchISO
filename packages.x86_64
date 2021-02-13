@@ -16,6 +16,7 @@ darkhttpd
 ddrescue
 dhclient
 dhcpcd
+dialog
 diffutils
 dmraid
 dnsmasq
@@ -34,6 +35,8 @@ gptfdisk
 grml-zsh-config
 haveged
 hdparm
+iperf3
+ipmitool
 intel-ucode
 ipw2100-fw
 ipw2200-fw
@@ -89,6 +92,7 @@ smartmontools
 squashfs-tools
 sudo
 syslinux
+sysstat
 systemd-resolvconf
 tcpdump
 terminus-font
@@ -100,6 +104,7 @@ usb_modeswitch
 usbutils
 vim
 vpnc
+wget
 wireless-regdb
 wireless_tools
 wpa_supplicant
