@@ -11,9 +11,14 @@ fi
 if [ -d archlive ]; then 
 	sudo rm -rf archlive
 fi
-mkdir archlive
+if [ ! -d pkgcache ]; then 
+	mkdir pkgcache
+fi
+if [ ! -d archlive ]; then 
+	mkdir archlive
+fi
 cp -r /usr/share/archiso/configs/releng/* archlive/
-
+#sudo pacman -Syw  --noconfirm --config pacman.conf --cachedir ./pkgcache $(cat packages.x86_64 | grep -v '#')
 
 cp packages.x86_64 archlive/packages.x86_64
 cp customize_airootfs.sh archlive/airootfs/root/
@@ -40,7 +45,8 @@ if [ ! -d  archlive/airootfs/opt/packages/ ] ; then
 fi
 echo "Copying repo to install medium"
 #mkdir -p archlive/airootfs/opt/
-#rsync -ar packages archlive/airootfs/opt/
+rsync -ar pkgcache/ archlive/airootfs/opt/packages/
+rsync -ar /var/cache/pacman/pkg/ archlive/airootfs/opt/packages/
 mkdir -p archlive/airootfs/etc/skel
 cp tmux.conf archlive/airootfs/etc/skel/.tmux.conf
 chmod +x archlive/airootfs/root/customize_airootfs.sh
