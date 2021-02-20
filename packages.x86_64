@@ -3,6 +3,7 @@
 alsa-utils
 amd-ucode
 arch-install-scripts
+archiso
 b43-fwcutter
 base
 base-devel
@@ -115,3 +116,19 @@ zsh
 zfs-linux
 zfs-linux-lts
 zfs-linux-lts-headers
+libisoburn
+kbd
+systemd
+kbd
+systemd-sysvcompat
+polkit
+initramfs
+linux
+udev
+libpulse
+mkinitcpio
+linux-lts
+libburn
+libisofs
+libisoburn
+liburcu

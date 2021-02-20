@@ -2,6 +2,10 @@
 set -e
 umask 0022
 export LANG="C"
+
+sudo umount work/x86_64/airootfs/proc || true
+sudo umount work/x86_64/airootfs/dev  || true
+sudo umount work/x86_64/airootfs/sys  || true
 if [ -d out ]; then 
 	sudo rm -rf out
 fi
@@ -17,8 +21,22 @@ fi
 if [ ! -d archlive ]; then 
 	mkdir archlive
 fi
+
+# Make sure we have archiso installed for mkachiso tool.
+if [ ! -d /usr/share/archiso/configs/releng/ ]; then
+	sudo pacman -Sy archiso
+fi
+# Download all the needed installation packages.
+sudo pacman -Syw --noconfirm  $(cat packages.x86_64 | grep -v '#')
+# Clean up local package cache.
+# Make sure /etc/pacman.conf contains CleanMethod = KeepCurrent
+sudo pacman -Sc --noconfirm
+#Make a local repository of our package cache.
+sudo rm -f /var/cache/pacman/pkg/localcacherepo*
+sudo repo-add /var/cache/pacman/pkg/localcacherepo.db.tar.gz /var/cache/pacman/pkg/*
+#killall darkhttpd || true
+
 cp -r /usr/share/archiso/configs/releng/* archlive/
-#sudo pacman -Syw  --noconfirm --config pacman.conf --cachedir ./pkgcache $(cat packages.x86_64 | grep -v '#')
 
 cp packages.x86_64 archlive/packages.x86_64
 cp customize_airootfs.sh archlive/airootfs/root/
@@ -45,8 +63,8 @@ if [ ! -d  archlive/airootfs/opt/packages/ ] ; then
 fi
 echo "Copying repo to install medium"
 #mkdir -p archlive/airootfs/opt/
-rsync -ar pkgcache/ archlive/airootfs/opt/packages/
-rsync -ar /var/cache/pacman/pkg/ archlive/airootfs/opt/packages/
+mkdir -p archlive/airootfs/var/cache/pacman/pkg
+rsync -ar /var/cache/pacman/pkg/ archlive/airootfs/var/cache/pacman/pkg/
 mkdir -p archlive/airootfs/etc/skel
 cp tmux.conf archlive/airootfs/etc/skel/.tmux.conf
 chmod +x archlive/airootfs/root/customize_airootfs.sh
