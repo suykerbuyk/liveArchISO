@@ -40,7 +40,7 @@ err() {
 }
 #run a command but first tell the user what its going to do.
 run() {
-        printf " $@ \n"
+        printf " $@ \n" | tr '\t' ' ' | tr '  ' ' '
         [[ 1 == $DRY_RUN ]] && return 0
         eval "$@"; ret=$?
         [[ $ret == 0 ]] && return 0
@@ -61,8 +61,8 @@ prepare_for_start() {
 	msg "Zapping"
 	# vgchange -an &> /dev/null
 	# mdadm --zero-superblock --force "${1}" &> /dev/null
-	for DRV in  ${DRV_LIST[*]} ; do run "sgdisk --zap-all ${DRV}" & done
-	for job in `jobs -p`; do echo "Waiting for $job to complete"; wait ${job}; done
+	for DRV in  ${DRV_LIST[*]} ; do run "sgdisk --zap-all ${DRV} && wipefs --all ${DRV} " & done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	msg "Partitioning"
 	for DRV in ${DRV_LIST[*]}
 	do
@@ -70,7 +70,7 @@ prepare_for_start() {
 		            -n2:0:+8G -t2:8200  -c2:swap \
 			    -n3:0:0 -t3:bf00 -c3:root ${DRV}" &
 	done
-	for job in `jobs -p`; do echo "Waiting for $job to complete"; wait ${job}; done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 
 	msg "Partprobing"
 	for DRV in ${DRV_LIST[*]} 
@@ -80,7 +80,7 @@ prepare_for_start() {
 		SWAP_PARTS+=("${DRV}-part2")
 		ROOT_PARTS+=("${DRV}-part3")
        	done
-	for job in `jobs -p`; do echo "Waiting for $job to complete"; wait ${job}; done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	udevadm trigger
 }
 capture_stderr () {
@@ -138,10 +138,10 @@ get_disk_list() {
 create_file_systems() {
 	msg "Formatting boot partitions"
 	for PART in ${BOOT_PARTS[*]}; do run "mkfs.vfat $PART"  & done
-	for job in `jobs -p`; do echo "Waiting for $job to complete"; wait ${job}; done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	msg "Formatting swap partitions"
 	for PART in ${SWAP_PARTS[*]}; do run "mkswap $PART"     & done
-	for job in `jobs -p`; do echo "Waiting for $job to complete"; wait ${job}; done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	ZFS_VDEVS=""
 	for PART in ${ROOT_PARTS[*]}; do ZFS_VDEVS+="$PART "; done
 	
