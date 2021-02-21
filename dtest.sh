@@ -27,22 +27,26 @@ NC='\033[0m' # No Color
 DRY_RUN=0
 GO_SLOW=0
 
+LOG_FILE=dtest.log
+
+echo "Start at $(date)" >$LOG_FILE
+
 # Simple message output
 msg() {
-        printf "$@\n"
+        printf "$@\n" | tee -a $LOG_FILE
         [[ $GO_SLOW == 1 ]] && sleep 1
         return 0
 }
 err() {
-        printf "$@\n"
+        printf "$@\n" | tee -a $LOG_FILE
         [[ $GO_SLOW == 1 ]] && sleep 1
         exit 1
 }
 #run a command but first tell the user what its going to do.
 run() {
-        printf " $@ \n" | tr '\t' ' ' | tr '  ' ' '
+        printf "RUN: $@ \n" | tr '\t' ' ' | sed -r 's/\s+\s/ /g' | tee -a $LOG_FILE
         [[ 1 == $DRY_RUN ]] && return 0
-        eval "$@"; ret=$?
+        eval "$@" &>>$LOG_FILE; ret=$?
         [[ $ret == 0 ]] && return 0
         printf " $@ - ERROR_CODE: $ret\n"
         exit $ret
