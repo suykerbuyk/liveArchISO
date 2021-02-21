@@ -51,7 +51,7 @@ run() {
         printf " $@ - ERROR_CODE: $ret\n"
         exit $ret
 }
-
+umount ${MNT_DIR}/* || true
 zpool destroy ${ROOT_POOL} || true
 msg "Zapping"
 # vgchange -an &> /dev/null

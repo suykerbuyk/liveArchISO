@@ -5,12 +5,12 @@ amd-ucode
 arch-install-scripts
 b43-fwcutter
 base
-base-devel
 bind-tools
 brltty
 broadcom-wl
 btrfs-progs
 clonezilla
+cloud-init
 crda
 darkhttpd
 ddrescue
@@ -26,9 +26,10 @@ espeakup
 ethtool
 exfatprogs
 f2fs-tools
+fatresize
 fsarchiver
-git
 gnu-netcat
+gpart
 gpm
 gptfdisk
 grml-zsh-config
@@ -42,6 +43,9 @@ iwd
 jfsutils
 kitty-terminfo
 lftp
+linux
+linux-atm
+linux-firmware
 livecd-sounds
 lsscsi
 lvm2
@@ -55,7 +59,6 @@ mkinitcpio
 mkinitcpio-archiso
 mkinitcpio-nfs-utils
 mtools
-multipath-tools
 nano
 nbd
 ndisc6

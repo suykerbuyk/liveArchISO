@@ -7,8 +7,7 @@ ROOT_POOL="${TGT_HOSTNAME}_zroot"
 SYS_FS="sys"
 DATA_FS="data"
 SYS_ROOT="${ROOT_POOL}/${SYS_FS}"
-SYS_NAME="arch"
-MNT_DIR="/mnt"
+SYS_NAME="arch" MNT_DIR="/mnt"
 archzfs_pgp_key="F75D9D76"
 zroot="dac"
 
@@ -67,20 +66,22 @@ prepare_for_start() {
 	msg "Partitioning"
 	for DRV in ${DRV_LIST[*]}
 	do
-		run "sgdisk -n1:0:+512M -t1:EF00 -c1:efi -n2:1052672:+8G \
-			-t2:8200 -c2:swap -n3:17829888:0 -t3:bf00 -c3:root ${DRV}" &
+		run "sgdisk -n1:1M:+1G -t1:EF00 -c1:efi \
+		            -n2:0:+8G -t2:8200  -c2:swap \
+			    -n3:0:0 -t3:bf00 -c3:root ${DRV}" &
 	done
 	for job in `jobs -p`; do echo "Waiting for $job to complete"; wait ${job}; done
 
 	msg "Partprobing"
 	for DRV in ${DRV_LIST[*]} 
 	do
-		run "partprobe -s ${DRV}"
+		run "partprobe -s ${DRV} && udevadm trigger ${DRV}" & 
 		BOOT_PARTS+=("${DRV}-part1")
 		SWAP_PARTS+=("${DRV}-part2")
 		ROOT_PARTS+=("${DRV}-part3")
        	done
-	sleep 1
+	for job in `jobs -p`; do echo "Waiting for $job to complete"; wait ${job}; done
+	udevadm trigger
 }
 capture_stderr () {
 	{ captured=$( { { "$@" ; } 1>&3 ; } 2>&1); } 3>&1
@@ -171,5 +172,4 @@ for DRV in  ${DRV_LIST[*]} ; do
 	echo $DRV
 done
 prepare_for_start
-
 create_file_systems
