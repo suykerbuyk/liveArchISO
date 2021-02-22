@@ -3,13 +3,15 @@ set -e
 
 
 TGT_HOSTNAME="dac"
-ROOT_POOL="${TGT_HOSTNAME}_zroot"
+ZFS_ROOT_POOL="${TGT_HOSTNAME}_zroot"
+ZFS_BOOT_POOL="${TGT_HOSTNAME}_zboot"
 SYS_FS="sys"
 DATA_FS="data"
 SYS_ROOT="${ROOT_POOL}/${SYS_FS}"
 SYS_NAME="arch" MNT_DIR="/mnt"
 archzfs_pgp_key="F75D9D76"
-zroot="dac"
+zroot="dac_root"
+zboot="dac_boot"
 
 # Set a default locale during install to avoid mandb error when indexing man pages
 export LANG=C
@@ -28,10 +30,42 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 DRY_RUN=0
 GO_SLOW=0
-
 LOG_FILE=dtest.log
-
 echo "Start at $(date)" >$LOG_FILE
+
+
+ZFS_BOOT_ATTRS="\
+-o ashift=12 \
+-d -o feature@async_destroy=enabled \
+-o feature@bookmarks=enabled \
+-o feature@embedded_data=enabled \
+-o feature@empty_bpobj=enabled \
+-o feature@enabled_txg=enabled \
+-o feature@extensible_dataset=enabled \
+-o feature@filesystem_limits=enabled \
+-o feature@hole_birth=enabled \
+-o feature@large_blocks=enabled \
+-o feature@lz4_compress=enabled \
+-o feature@spacemap_histogram=enabled \
+-O acltype=posixacl \
+-O canmount=off \
+-O compression=lz4 \
+-O devices=off \
+-O normalization=formD \
+-O relatime=on \
+-O xattr=sa "
+
+ZFS_ROOT_ATTRS="\
+-o ashift=12 \
+-O acltype=posixacl \
+-O canmount=off \
+-O compression=zstd \
+-O dnodesize=auto \
+-O normalization=formD \
+-O relatime=on \
+-O xattr=sa \
+-O mountpoint=/ "
+
 
 # Simple message output
 msg() {
@@ -59,54 +93,6 @@ chrun() {
     arch-chroot "${installdir}" /bin/bash -c "${1}"
 }
 
-prepare_for_start() {
-	#for MNT in $(mount -l | grep ${MNT_DIR} ) ; do 
-	for MNT in $(cat /proc/mounts | grep ${MNT_DIR} | awk '{print $2}' | sort -r) ; do 
-		run "umount ${MNT}" || true
-	done
-	zpool destroy ${ROOT_POOL} || true
-	msg "Zapping selected disk"
-	# vgchange -an &> /dev/null
-	# mdadm --zero-superblock --force "${1}" &> /dev/null
-	for DRV in  ${DRV_LIST[*]}
-	do
-		for PART in $(ls ${DRV}* | grep part | sort -r)
-		do
-			run "wipefs --all ${PART} " &
-		done
-		for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
-		run "sgdisk --zap-all ${DRV} && wipefs --all ${DRV} " &
-	done
-	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
-	msg "Partitioning"
-	for DRV in ${DRV_LIST[*]}
-	do
-		run "sgdisk -n1:1M:+1G    -t1:EF00  -c1:efi  \
-		        -a1 -n5:24k:+100K -t5:EF02  -c5:bios \
-		            -n2:0:+4G     -t2:BE00  -c2:boot \
-		            -n3:0:-8G     -t3:BF00  -c3:root \
-		            -n4:0:0       -t4:8308  -c4:swap ${DRV}" &
-	done
-	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
-	msg "Partprobing disk"
-	for DRV in ${DRV_LIST[*]} 
-	do
-		run "partprobe -s ${DRV} && udevadm trigger ${DRV}" & 
-		EFI_PARTS+=("${DRV}-part1")
-		BOOT_PARTS+=("${DRV}-part2")
-		ROOT_PARTS+=("${DRV}-part3")
-		SWAP_PARTS+=("${DRV}-part4")
-		BIOS_PARTS+=("${DRV}-part5")
-       	done
-	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
-	udevadm trigger
-	echo "EFI: ${EFI_PARTS[*]}"
-	echo "BIOS: ${BIOS_PARTS[*]}"
-	echo "BOOT: ${BOOT_PARTS[*]}"
-	echo "ROOT: ${ROOT_PARTS[*]}"
-	echo "SWAP: ${SWAP_PARTS[*]}"
-	read a
-}
 capture_stderr () {
 	{ captured=$( { { "$@" ; } 1>&3 ; } 2>&1); } 3>&1
 }
@@ -159,6 +145,55 @@ get_disk_list() {
 	IFS="${OLD_IFS}"
 	[ -f "${MENU_FILE}" ] && rm "${MENU_FILE}"
 }
+prepare_for_start() {
+	#for MNT in $(mount -l | grep ${MNT_DIR} ) ; do 
+	for MNT in $(cat /proc/mounts | grep ${MNT_DIR} | awk '{print $2}' | sort -r) ; do 
+		run "umount ${MNT}" || true
+	done
+	zpool destroy ${ZFS_BOOT_POOL} || true
+	zpool destroy ${ZFS_ROOT_POOL} || true
+	msg "Zapping selected disk"
+	# vgchange -an &> /dev/null
+	# mdadm --zero-superblock --force "${1}" &> /dev/null
+	for DRV in  ${DRV_LIST[*]}
+	do
+		for PART in $(ls ${DRV}* | grep part | sort -r)
+		do
+			run "wipefs --all ${PART} " &
+		done
+		for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
+		run "sgdisk --zap-all ${DRV} && wipefs --all ${DRV} " &
+	done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
+	msg "Partitioning"
+	for DRV in ${DRV_LIST[*]}
+	do
+		run "sgdisk -n1:1M:+1G    -t1:EF00  -c1:efi  \
+		        -a1 -n5:24k:+100K -t5:EF02  -c5:bios \
+		            -n2:0:+4G     -t2:BE00  -c2:boot \
+		            -n3:0:-8G     -t3:BF00  -c3:root \
+		            -n4:0:0       -t4:8308  -c4:swap ${DRV}" &
+	done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
+	msg "Partprobing disk"
+	for DRV in ${DRV_LIST[*]} 
+	do
+		run "partprobe -s ${DRV} && udevadm trigger ${DRV}" & 
+		EFI_PARTS+=("${DRV}-part1")
+		BOOT_PARTS+=("${DRV}-part2")
+		ROOT_PARTS+=("${DRV}-part3")
+		SWAP_PARTS+=("${DRV}-part4")
+		BIOS_PARTS+=("${DRV}-part5")
+       	done
+	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
+	udevadm trigger
+	# echo "EFI:  ${EFI_PARTS[*]}"
+	# echo "BIOS: ${BIOS_PARTS[*]}"
+	# echo "BOOT: ${BOOT_PARTS[*]}"
+	# echo "ROOT: ${ROOT_PARTS[*]}"
+	# echo "SWAP: ${SWAP_PARTS[*]}"
+	# read a
+}
 create_file_systems() {
 	msg "Formatting boot partitions"
 	for PART in ${BOOT_PARTS[*]}; do run "mkfs.vfat $PART"  & done
@@ -167,26 +202,57 @@ create_file_systems() {
 	for PART in ${SWAP_PARTS[*]}; do run "mkswap $PART"     & done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	ZFS_VDEVS=""
-	for PART in ${ROOT_PARTS[*]}; do ZFS_VDEVS+="$PART "; done
+	for PART in ${ROOT_PARTS[*]}; do ZFS_ROOT_VDEVS+="$PART "; done
+	for PART in ${BOOT_PARTS[*]}; do ZFS_BOOT_VDEVS+="$PART "; done
 	
-	msg "Creating ${ROOT_POOL} pool"
-	run "zpool create -f \
-		-O atime=off \
-		-O relatime=on \
-		-o ashift=12 \
-		-O acltype=posixacl -O canmount=off -O compression=lz4 \
-		-O dnodesize=legacy -O normalization=formD \
-		-O xattr=sa -O devices=off -O mountpoint=none \
-		-R ${MNT_DIR} ${ROOT_POOL} raidz2 $ZFS_VDEVS"
+	msg "Creating ${ZFS_ROOT_POOL} pool"
+
+	run "zpool create -f ${ZFS_BOOT_ATTRS} -R ${MNT_DIR} ${ZFS_BOOT_POOL} raidz2 $ZFS_BOOT_VDEVS"
+	run "zpool create -f ${ZFS_ROOT_ATTRS} -R ${MNT_DIR} ${ZFS_ROOT_POOL} raidz2 $ZFS_ROOT_VDEVS"
+	# Create container datasets
+	run "zfs create -o canmount=off -o mountpoint=none ${ZFS_BOOT_POOL}/BOOT"
+	run "zfs create -o canmount=off -o mountpoint=none ${ZFS_ROOT_POOL}/ROOT"
+	run "zfs create -o canmount=off -o mountpoint=none ${ZFS_ROOT_POOL}/DATA"
+	# Create root and boot file systems
+	run "zfs create -o mountpoint=legacy -o canmount=noauto ${ZFS_BOOT_POOL}/BOOT/default"
+	run "zfs create -o mountpoint=/      -o canmount=noauto ${ZFS_ROOT_POOL}/ROOT/default"
+	run "zfs mount ${ZFS_ROOT_POOL}/ROOT/default"
+	run "mkdir ${MNT_DIR}/boot"
+	run "mount -t zfs ${ZFS_BOOT_POOL}/BOOT/default ${MNT_DIR}/boot"
+
+	# Creates datasets within the root file system
+	msg "Creating system data sets"
+	run "zfs create -o mountpoint=/ -o canmount=off ${ZFS_ROOT_POOL}/DATA/default"
+	for i in {usr,var,var/lib}
+	do
+		run "zfs create -o canmount=off ${ZFS_ROOT_POOL}/DATA/default/$i"
+	done
+	for i in {home,opt,root,srv,usr/local,var/log,var/spool,var/tmp,var/www}
+	do
+		run "zfs create -o canmount=on ${ZFS_ROOT_POOL}/DATA/default/$i"
+	done
+	# Extra zfs file systems for special apps.
+	for i in {var/lib/docker,var/lib/nfs,var/lib/lxc,var/lib/libvirt}
+	do
+		run "zfs create -o canmount=on ${ZFS_ROOT_POOL}/DATA/default/$i"
+	done
+	run "chmod 750  ${MNT_DIR}/root"
+	run "chmod 1777 ${MNT_DIR}/var/tmp"
+	msg "Creating first efi system partition"
+	# Format and mount EFI system partition
+	run "mkfs.vfat -n EFI ${EFI_PARTS[0]}"
+	run "mkdir ${MNT_DIR}/boot/efi"
+	# We'll tend to the other efi parts later...	
+	run "mount -t vfat ${EFI_PARTS[0]} ${MNT_DIR}/boot/efi"
 	
-	run "zfs create -o mountpoint=none -p ${SYS_ROOT}/${SYS_NAME}"
-	run "zfs create -o mountpoint=none    ${SYS_ROOT}/${SYS_NAME}/ROOT"
-	run "zfs create -o mountpoint=/       ${SYS_ROOT}/${SYS_NAME}/ROOT/default"
-	run "zfs create -o mountpoint=legacy  ${SYS_ROOT}/${SYS_NAME}/home"
-	run "zfs create -o canmount=off -o mountpoint=/var     -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var"
-	run "zfs create -o canmount=off -o mountpoint=/var/lib -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var/lib"
-	run "zfs create -o canmount=off -o mountpoint=/var/lib/systemd -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var/lib/systemd"
-	run "zfs create -o canmount=off -o mountpoint=/usr     -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/usr"
+#	run "zfs create -o mountpoint=none -p ${SYS_ROOT}/${SYS_NAME}"
+#	run "zfs create -o mountpoint=none    ${SYS_ROOT}/${SYS_NAME}/ROOT"
+#	run "zfs create -o mountpoint=/       ${SYS_ROOT}/${SYS_NAME}/ROOT/default"
+#	run "zfs create -o mountpoint=legacy  ${SYS_ROOT}/${SYS_NAME}/home"
+#	run "zfs create -o canmount=off -o mountpoint=/var     -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var"
+#	run "zfs create -o canmount=off -o mountpoint=/var/lib -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var/lib"
+#	run "zfs create -o canmount=off -o mountpoint=/var/lib/systemd -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var/lib/systemd"
+#	run "zfs create -o canmount=off -o mountpoint=/usr     -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/usr"
 
 }
 get_disk_list
@@ -197,3 +263,7 @@ for DRV in  ${DRV_LIST[*]} ; do
 done
 prepare_for_start
 create_file_systems
+
+
+echo "Stop at $(date)" >>$LOG_FILE
+
