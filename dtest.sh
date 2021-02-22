@@ -20,6 +20,8 @@ declare -a DRV_LIST
 declare -a BOOT_PARTS
 declare -a SWAP_PARTS
 declare -a ROOT_PARTS
+declare -a BIOS_PARTS
+declare -a EFI_PARTS
 
 # Colors
 RED='\033[0;31m'
@@ -33,7 +35,7 @@ echo "Start at $(date)" >$LOG_FILE
 
 # Simple message output
 msg() {
-        printf "$@\n" | tee -a $LOG_FILE
+        printf "MSG: $@\n" | tee -a $LOG_FILE
         [[ $GO_SLOW == 1 ]] && sleep 1
         return 0
 }
@@ -58,34 +60,52 @@ chrun() {
 }
 
 prepare_for_start() {
-	for MNT in $(mount -l | grep ${MNT_DIR} ) ; do 
-		umount "${MNT}" || true
+	#for MNT in $(mount -l | grep ${MNT_DIR} ) ; do 
+	for MNT in $(cat /proc/mounts | grep ${MNT_DIR} | awk '{print $2}' | sort -r) ; do 
+		run "umount ${MNT}" || true
 	done
 	zpool destroy ${ROOT_POOL} || true
-	msg "Zapping"
+	msg "Zapping selected disk"
 	# vgchange -an &> /dev/null
 	# mdadm --zero-superblock --force "${1}" &> /dev/null
-	for DRV in  ${DRV_LIST[*]} ; do run "sgdisk --zap-all ${DRV} && wipefs --all ${DRV} " & done
+	for DRV in  ${DRV_LIST[*]}
+	do
+		for PART in $(ls ${DRV}* | grep part | sort -r)
+		do
+			run "wipefs --all ${PART} " &
+		done
+		for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
+		run "sgdisk --zap-all ${DRV} && wipefs --all ${DRV} " &
+	done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	msg "Partitioning"
 	for DRV in ${DRV_LIST[*]}
 	do
-		run "sgdisk -n1:1M:+1G -t1:EF00 -c1:efi \
-		            -n2:0:+8G -t2:8200  -c2:swap \
-			    -n3:0:0 -t3:bf00 -c3:root ${DRV}" &
+		run "sgdisk -n1:1M:+1G    -t1:EF00  -c1:efi  \
+		        -a1 -n5:24k:+100K -t5:EF02  -c5:bios \
+		            -n2:0:+4G     -t2:BE00  -c2:boot \
+		            -n3:0:-8G     -t3:BF00  -c3:root \
+		            -n4:0:0       -t4:8308  -c4:swap ${DRV}" &
 	done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
-
-	msg "Partprobing"
+	msg "Partprobing disk"
 	for DRV in ${DRV_LIST[*]} 
 	do
 		run "partprobe -s ${DRV} && udevadm trigger ${DRV}" & 
-		BOOT_PARTS+=("${DRV}-part1")
-		SWAP_PARTS+=("${DRV}-part2")
+		EFI_PARTS+=("${DRV}-part1")
+		BOOT_PARTS+=("${DRV}-part2")
 		ROOT_PARTS+=("${DRV}-part3")
+		SWAP_PARTS+=("${DRV}-part4")
+		BIOS_PARTS+=("${DRV}-part5")
        	done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	udevadm trigger
+	echo "EFI: ${EFI_PARTS[*]}"
+	echo "BIOS: ${BIOS_PARTS[*]}"
+	echo "BOOT: ${BOOT_PARTS[*]}"
+	echo "ROOT: ${ROOT_PARTS[*]}"
+	echo "SWAP: ${SWAP_PARTS[*]}"
+	read a
 }
 capture_stderr () {
 	{ captured=$( { { "$@" ; } 1>&3 ; } 2>&1); } 3>&1
