@@ -33,6 +33,17 @@ GO_SLOW=0
 LOG_FILE=dtest.log
 echo "Start at $(date)" >$LOG_FILE
 
+cat <<- END_OF_PAC_CONF > ./local.pacman.conf
+	[options]
+	HoldPkg     = pacman glibc
+	Architecture = auto
+	CheckSpace
+	SigLevel    = Required DatabaseOptional
+	LocalFileSigLevel = Optional
+	[localcacherepo]
+	SigLevel = Optional TrustAll
+	Server = http://192.168.7.22/
+END_OF_PAC_CONF
 
 ZFS_BOOT_ATTRS="\
 -o ashift=12 \
@@ -187,12 +198,6 @@ prepare_for_start() {
        	done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	udevadm trigger
-	# echo "EFI:  ${EFI_PARTS[*]}"
-	# echo "BIOS: ${BIOS_PARTS[*]}"
-	# echo "BOOT: ${BOOT_PARTS[*]}"
-	# echo "ROOT: ${ROOT_PARTS[*]}"
-	# echo "SWAP: ${SWAP_PARTS[*]}"
-	# read a
 }
 create_file_systems() {
 	msg "Formatting boot partitions"
@@ -244,26 +249,40 @@ create_file_systems() {
 	run "mkdir ${MNT_DIR}/boot/efi"
 	# We'll tend to the other efi parts later...	
 	run "mount -t vfat ${EFI_PARTS[0]} ${MNT_DIR}/boot/efi"
-	
-#	run "zfs create -o mountpoint=none -p ${SYS_ROOT}/${SYS_NAME}"
-#	run "zfs create -o mountpoint=none    ${SYS_ROOT}/${SYS_NAME}/ROOT"
-#	run "zfs create -o mountpoint=/       ${SYS_ROOT}/${SYS_NAME}/ROOT/default"
-#	run "zfs create -o mountpoint=legacy  ${SYS_ROOT}/${SYS_NAME}/home"
-#	run "zfs create -o canmount=off -o mountpoint=/var     -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var"
-#	run "zfs create -o canmount=off -o mountpoint=/var/lib -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var/lib"
-#	run "zfs create -o canmount=off -o mountpoint=/var/lib/systemd -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/var/lib/systemd"
-#	run "zfs create -o canmount=off -o mountpoint=/usr     -o xattr=sa ${SYS_ROOT}/${SYS_NAME}/usr"
+}
+generate_mounts() {
+# tab-separated zfs properties
+# see /etc/zfs/zed.d/history_event-zfs-list-cacher.sh
+export \
+PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
+,readonly,setuid,nbmand,encroot,keylocation\
+,org.openzfs.systemd:requires,org.openzfs.systemd:requires-mounts-for\
+,org.openzfs.systemd:before,org.openzfs.systemd:after\
+,org.openzfs.systemd:wanted-by,org.openzfs.systemd:required-by\
+,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore"
 
+	mkdir -p ${MNT_DIR}/etc/zfs/zfs-list.cache
+
+	zfs list -H -t filesystem -o $PROPS -r ${ZFS_ROOT_POOL} \
+	> ${MNT_DIR}/etc/zfs/zfs-list.cache/${ZFS_ROOT_POOL}
+
+	sed -Ei "s|${MNT_DIR}/?|/|" ${MNT_DIR}/etc/zfs/zfs-list.cache/*
+
+	echo ${ZFS_BOOT_POOL}/BOOT/default /boot zfs rw,xattr,posixacl 0 0 >>/${MNT_DIR}/etc/fstab
+	echo UUID=$(blkid -s UUID -o value ${EFI_PARTS[0]}) /boot/efi vfat umask=0022,fmask=0022,dmask=0022 0 1 >> ${MNT_DIR}/etc/fstab
+}
+do_install() {
+	pacstrap -C ./local.pacman.conf ${MNT_DIR} $(cat ./packages.x86_64 | grep -v '#')
 }
 get_disk_list
-echo "${#DRV_LIST[@]} disk selected"
-#echo "${DRV_LIST[*]}"
+msg "${#DRV_LIST[@]} disk selected"
 for DRV in  ${DRV_LIST[*]} ; do
-	echo $DRV
+	msg "  $DRV"
 done
 prepare_for_start
 create_file_systems
-
+do_install
+generate_mounts
 
 echo "Stop at $(date)" >>$LOG_FILE
 
