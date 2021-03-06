@@ -9,9 +9,8 @@ SYS_FS="sys"
 DATA_FS="data"
 SYS_ROOT="${ROOT_POOL}/${SYS_FS}"
 SYS_NAME="arch" MNT_DIR="/mnt"
+TGT_TIME_ZONE="../usr/share/zoneinfo/America/Denver"
 archzfs_pgp_key="F75D9D76"
-zroot="dac_root"
-zboot="dac_boot"
 
 # Set a default locale during install to avoid mandb error when indexing man pages
 export LANG=C
@@ -42,8 +41,9 @@ cat <<- END_OF_PAC_CONF > ./local.pacman.conf
 	LocalFileSigLevel = Optional
 	[localcacherepo]
 	SigLevel = Optional TrustAll
-	Server = http://192.168.7.22/
+	Server = file:///opt/packages
 END_OF_PAC_CONF
+#	Server = http://192.168.7.22/
 
 ZFS_BOOT_ATTRS="\
 -o ashift=12 \
@@ -274,6 +274,55 @@ PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
 do_install() {
 	pacstrap -C ./local.pacman.conf ${MNT_DIR} $(cat ./packages.x86_64 | grep -v '#')
 }
+
+do_configure() {
+	msg "Configuring network"
+	cat <<- END_OF_NET_CONF > ${MNT_DIR}/etc/systemd/network/20-ethernet.netwok
+	#
+	# SPDX-License-Identifier: GPL-3.0-or-later
+
+	[Match]
+	Name=en*
+	Name=eth*
+
+	[Network]
+	DHCP=yes
+	IPv6PrivacyExtensions=yes
+
+	[DHCP]
+	RouteMetric=512
+	END_OF_NET_CONF
+	msg "Setting hostname to $TGT_HOSTNAME"
+	echo $TGT_HOSTNAME>/${MNT_DIR}/etc/hostname 
+	msg "Setting time zone to $TGT_TIME_ZONE"
+	ln -s $TGT_TIME_ZONE ${MNT_DIR}/etc/localtime
+	hwclock --systohc
+
+	msg "Configuring pacman"
+	tee -a ${MNT_DIR}/etc/pacman.conf <<- 'PACMAN_CONF'
+	[archzfs]
+	Include = /etc/pacman.d/mirrorlist-archzfs
+	PACMAN_CONF
+
+	tee -a ${MNT_DIR}/etc/pacman.d/mirrorlist-archzfs <<- 'PACMAN_MIRRORS'
+	Server = https://archzfs.com/$repo/$arch
+	Server = https://mirror.sum7.eu/archlinux/archzfs/$repo/$arch
+	Server = https://mirror.biocrafting.net/archlinux/archzfs/$repo/$arch
+	Server = https://mirror.in.themindsmaze.com/archzfs/$repo/$arch
+	PACMAN_MIRRORS
+
+	msg "Setting language to: $TGT_LANGUAGE"
+	echo "en_US.UTF-8 UTF-8" >> ${MNT_DIR}/etc/locale.gen
+	echo "LANG=en_US.UTF-8" >> ${MNT_DIR}/etc/locale.conf
+
+	msg "Configuring mkinitcpio"
+	mv ${MNT_DIR}/etc/mkinitcpio.conf ${MNT_DIR}/etc/mkinitcpio.conf.original
+	tee ${MNT_DIR}/etc/mkinitcpio.conf <<-MKINIT_EOF
+	HOOKS=(base udev autodetect modconf block keyboard zfs filesystems)
+	MKINIT_EOF
+
+}
+
 get_disk_list
 msg "${#DRV_LIST[@]} disk selected"
 for DRV in  ${DRV_LIST[*]} ; do
@@ -283,6 +332,10 @@ prepare_for_start
 create_file_systems
 do_install
 generate_mounts
+do_configure
+
+# Fix broken grub
+ls -lah /dev/disk/by-id/wwn-0x5000c500* | grep part | awk -F '/' '{print $5 "  " $7}' | sed 's/ -> .. //g'  |  while read a; do WWN=$(echo $a | awk -F ' ' '{print $1}'); DEV=$(echo $a | awk -F ' ' '{print $2}'); ln -s /dev/$DEV /dev/$WWN; done
 
 echo "Stop at $(date)" >>$LOG_FILE
 
