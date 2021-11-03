@@ -1,78 +1,90 @@
 #!/bin/sh
-set -e
+#set -e
 umask 0022
 export LANG="C"
 
-CACHEDIR=/opt/packages
-
+CACHEDIR="/opt/packages"
+DB_PATH="./db"
 CLEAN_START=1
 
-sudo umount work/x86_64/airootfs/proc || true
-sudo umount work/x86_64/airootfs/dev  || true
-sudo umount work/x86_64/airootfs/sys  || true
+
+PATH_OF_THIS_FILE=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd)
+PATH_TO_THE_DYNAMIC_DATA_DIRECTORY="${PATH_OF_THIS_FILE}/dynamic_data"
+#PATH_TO_THE_OUTPUT_DIRECTORY="${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/out"
+PATH_TO_THE_OUTPUT_DIRECTORY="${PATH_OF_THIS_FILE}/out"
+PATH_TO_THE_PROFILE_SOURCE="/usr/share/archiso/configs/releng"
+PATH_TO_PROFILE_DESTINATION="${PATH_OF_THIS_FILE}/image_profile"
+
+
+
+sudo umount ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/proc || true
+sudo umount ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/dev/pts  || true
+sudo umount ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/dev  || true
+sudo umount ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/sys  || true
 
 if [ $CLEAN_START == 1 ]; then
-
-	if [ -d out ]; then 
-		sudo rm -rf out
+	if [[ ! -d ${PATH_TO_THE_PROFILE_DIRECTORY} ]]; then
+		echo ":: No archiso package installed."
+		echo ":: We are going to install it now..."
+		pacman -Syyu --noconfirm archiso
 	fi
-	if [ -d work ]; then 
-		sudo rm -rf work
+	if [ -d ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} ]; then 
+		sudo rm -rf ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}
 	fi
-	if [ -d img_profile ]; then 
-		sudo rm -rf img_profile
+	mkdir ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}
+	if [ -d ${PATH_TO_THE_OUTPUT_DIRECTORY} ]; then
+		sudo rm -rf ${PATH_TO_THE_OUTPUT_DIRECTORY}
 	fi
-	if [ ! -d img_profile ]; then 
-		mkdir img_profile
+	mkdir ${PATH_TO_THE_OUTPUT_DIRECTORY}
+	if [ -d ${PATH_TO_PROFILE_DESTINATION} ]; then 
+		sudo rm -rf ${PATH_TO_PROFILE_DESTINATION}
 	fi
+	mkdir ${PATH_TO_PROFILE_DESTINATION}
 	if [ ! -d "${CACHEDIR}" ] ; then
-		sudo mkdir "${CACHEDIR}"
+		sudo mkdir -p "${CACHEDIR}"
 	fi
-	# Make sure we have archiso installed for mkachiso tool.
-	if [ ! -d /usr/share/archiso/configs/releng/ ]; then
-		sudo pacman -Sy archiso
-	fi
-	sudo rm -rf ./db | true
-	mkdir ./db
+	sudo rm -rf ${DB_PATH} | true
+	mkdir -p ${DB_PATH}
 	# Download all the needed installation packages.
 	# Synchronizing local cache dir ${CACHEDIR}
-	sudo pacman -Syw --dbpath ./db --noconfirm  $(cat packages.x86_64 | grep -v '#') --cachedir "${CACHEDIR}"
+	sudo pacman -Syw --noconfirm  --dbpath "${DB_PATH}"  $(cat packages.x86_64 | grep -v '#') --cachedir "${CACHEDIR}"
 	# Clean up local package cache.
 	# Make sure /etc/pacman.conf contains CleanMethod = KeepCurrent
 	#sudo pacman -Sc --noconfirm
 	#Make a local repository of our package cache.
-	sudo rm -f "${CACHEDIR}"/localcacherepo*
+	sudo rm -f "${CACHEDIR}/localcacherepo*"
 	echo "Creating repo database "
-	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/* &>repo-add.log
-	cp -r /usr/share/archiso/configs/releng/* ./img_profile/
+	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.zst &>repo-add.log
+	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.xz &>>repo-add.log
+	cp -r ${PATH_TO_THE_PROFILE_SOURCE}/* ${PATH_TO_PROFILE_DESTINATION}/
 fi
-#rsync -ar ./releng_profile/ ./img_profile/ --delete
-rsync -ar ./releng_profile/ ./img_profile/
-cp packages.x86_64 img_profile/packages.x86_64
-cp customize_airootfs.sh img_profile/airootfs/root/
-cp packages.x86_64 img_profile/airootfs/root/
-cp tmux.conf       img_profile/airootfs/root/.tmux.conf
-cp pacman.conf     img_profile/pacman.conf
-cp pacman.conf     img_profile/airootfs/root/
-cp installer.sh    img_profile/airootfs/root/
-cp dtest.sh        img_profile/airootfs/root/
-cp alez.sh         img_profile/airootfs/root/
-chmod +x img_profile/airootfs/root/installer.sh
-chmod +x img_profile/airootfs/root/dtest.sh
-chmod +x img_profile/airootfs/root/alez.sh
+rsync -ar ${PATH_TO_THE_PROFILE_SOURCE}/ ${PATH_TO_PROFILE_DESTINATION}/ --delete
+cp packages.x86_64 ${PATH_TO_PROFILE_DESTINATION}/packages.x86_64
+cp customize_airootfs.sh ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+cp packages.x86_64 ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+cp tmux.conf       ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/.tmux.conf
+cp pacman.conf     ${PATH_TO_PROFILE_DESTINATION}/pacman.conf
+cp pacman.conf     ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+cp installer.sh    ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+cp dtest.sh        ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+cp alez.sh         ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/installer.sh
+chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/dtest.sh
+chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/alez.sh
 YAY=$(which yay)
 if [ 0 -eq $? ]; then
-	cp "$YAY" img_profile/airootfs/root/
-	chmod 755 img_profile/airootfs/root/yay
-	chmod +x img_profile/airootfs/root/yay
+	cp "$YAY" ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+	chmod 755 ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/yay
+	chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/yay
 else
 	echo "yay not installed on host."
 fi
 echo "Copying repo to install medium"
-mkdir -p img_profile/airootfs/opt/packages
-rsync -ar ${CACHEDIR} img_profile/airootfs/opt/packages/
-mkdir -p img_profile/airootfs/etc/skel
-cp tmux.conf  img_profile/airootfs/etc/skel/.tmux.conf
-chmod +x img_profile/airootfs/root/*.sh
-sudo mkarchiso -v -w ./work -o ./out -C $PWD/pacman.conf $PWD/img_profile
-#sudo mkarchiso -v -w ./work -o ./out $PWD/img_profile
+#mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/opt/installer
+rsync -ar ${CACHEDIR}/ ${PATH_TO_PROFILE_DESTINATION}/airootfs/${CACHEDIR}/
+mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel
+cp tmux.conf  ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel/.tmux.conf
+chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/*.sh
+echo "Launching mkarchiso"
+sudo mkarchiso -v -w ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ${PATH_TO_THE_OUTPUT_DIRECTORY} -C ${PATH_OF_THIS_FILE}/pacman.conf ${PATH_TO_PROFILE_DESTINATION}
+#sudo mkarchiso -v -w ./${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ./out $PATH_OF_THIS_FILE/img_profile

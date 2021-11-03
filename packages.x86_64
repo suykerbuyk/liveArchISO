@@ -3,6 +3,7 @@
 alsa-utils
 amd-ucode
 arch-install-scripts
+archinstall
 archiso
 awk
 b43-fwcutter
@@ -152,7 +153,6 @@ tar
 tcl
 tcpdump
 terminus-font
-termite-terminfo
 testdisk
 tmux
 udftools
