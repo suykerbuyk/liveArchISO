@@ -81,7 +81,9 @@ else
 fi
 echo "Copying repo to install medium"
 #mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/opt/installer
-rsync -ar ${CACHEDIR}/ ${PATH_TO_PROFILE_DESTINATION}/airootfs/${CACHEDIR}/
+
+mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/${CACHEDIR}
+rsync -ar ${CACHEDIR}/ ${PATH_TO_PROFILE_DESTINATION}/airootfs/${CACHEDIR}
 mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel
 cp tmux.conf  ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel/.tmux.conf
 chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/*.sh
