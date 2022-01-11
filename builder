@@ -26,7 +26,7 @@ if [ $CLEAN_START == 1 ]; then
 	if [[ ! -d ${PATH_TO_THE_PROFILE_DIRECTORY} ]]; then
 		echo ":: No archiso package installed."
 		echo ":: We are going to install it now..."
-		pacman -Syyu --noconfirm archiso
+		sudo pacman -Syyu --noconfirm archiso
 	fi
 	if [ -d ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} ]; then 
 		sudo rm -rf ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}
@@ -47,7 +47,7 @@ if [ $CLEAN_START == 1 ]; then
 	mkdir -p ${DB_PATH}
 	# Download all the needed installation packages.
 	# Synchronizing local cache dir ${CACHEDIR}
-	sudo pacman -Syw --noconfirm  --dbpath "${DB_PATH}"  $(cat packages.x86_64 | grep -v '#') --cachedir "${CACHEDIR}"
+	sudo pacman -Syw --noconfirm  --dbpath "${DB_PATH}"  $(cat packages.x86_64 | grep -v '#') --cachedir "${CACHEDIR}" --config ./pacman.conf
 	# Clean up local package cache.
 	# Make sure /etc/pacman.conf contains CleanMethod = KeepCurrent
 	#sudo pacman -Sc --noconfirm
