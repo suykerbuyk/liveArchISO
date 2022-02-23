@@ -23,7 +23,7 @@ sudo umount ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/dev  || true
 sudo umount ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/sys  || true
 
 if [ $CLEAN_START == 1 ]; then
-	if [[ ! -d ${PATH_TO_THE_PROFILE_DIRECTORY} ]]; then
+	if [[ ! -d ${PATH_TO_THE_PROFILE_SOURCE} ]]; then
 		echo ":: No archiso package installed."
 		echo ":: We are going to install it now..."
 		sudo pacman -Syyu --noconfirm archiso

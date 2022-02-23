@@ -72,7 +72,6 @@ grub
 gzip
 haveged
 hdparm
-hwids
 icu
 intel-ucode
 iperf3
