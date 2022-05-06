@@ -57,8 +57,18 @@ if [ $CLEAN_START == 1 ]; then
 	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.zst &>repo-add.log
 	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.xz &>>repo-add.log
 	cp -r ${PATH_TO_THE_PROFILE_SOURCE}/* ${PATH_TO_PROFILE_DESTINATION}/
+	# Enable the serial port for UEFI/Systemd boot.
+	#AMEND='console=tty0 console=ttyS1,115200 text debug log.nologo'
+	#for X in $(find ${PATH_TO_PROFILE_DESTINATION}/efiboot -iname '0*.conf')
+	#do
+	#	egrep "${AMEND}" $X >/dev/null
+	#	if [[ $? == 1 ]]; then
+	#		sed -i "s/^options.*/& $AMEND/" "${X}"
+	#	fi
+	#done
+	#sed -i "s/^INITRD.*/& $AMEND/" "${PATH_TO_PROFILE_DESTINATION}/syslinux/archiso_sys-linux.cfg"
+	#arch-chroot  ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/ systemctl enable serial-getty@ttyS0.service
 fi
-rsync -ar ${PATH_TO_THE_PROFILE_SOURCE}/ ${PATH_TO_PROFILE_DESTINATION}/ --delete
 cp packages.x86_64 ${PATH_TO_PROFILE_DESTINATION}/packages.x86_64
 cp customize_airootfs.sh ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
 cp packages.x86_64 ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
@@ -80,8 +90,6 @@ else
 	echo "yay not installed on host."
 fi
 echo "Copying repo to install medium"
-#mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/opt/installer
-
 mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/${CACHEDIR}
 rsync -ar ${CACHEDIR}/ ${PATH_TO_PROFILE_DESTINATION}/airootfs/${CACHEDIR}
 mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel
@@ -89,4 +97,6 @@ cp tmux.conf  ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel/.tmux.conf
 chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/*.sh
 echo "Launching mkarchiso"
 sudo mkarchiso -v -w ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ${PATH_TO_THE_OUTPUT_DIRECTORY} -C ${PATH_OF_THIS_FILE}/pacman.conf ${PATH_TO_PROFILE_DESTINATION}
-#sudo mkarchiso -v -w ./${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ./out $PATH_OF_THIS_FILE/img_profile
+#echo "Cleaning up"
+#sudo rm -rf "${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}"/*
+#sudo rm -rf ${DB_PATH}

@@ -152,3 +152,6 @@ run "pacstrap  ${MNT_DIR} base base-devel"
 run "arch-chroot ${MNT_DIR}  pacman-key -r DDF7DB817396A49B2A2723F7403BD972F75D9D76"
 run "arch-chroot ${MNT_DIR}  pacman-key --lsign-key DDF7DB817396A49B2A2723F7403BD972F75D9D76"
 arch-chroot ${MNT_DIR}  pacman -Syu --noconfirm $(cat packages.x86_64 | grep -v '#')
+run "for X in $(find /etc/ssh/ | grep key) ; do cp -a $X ${MNT_DIR}/etc/ssh/ ; done"
+run "cp -a /etc/sshd_config ${MNT_DIR}/etc/ssh/"
+

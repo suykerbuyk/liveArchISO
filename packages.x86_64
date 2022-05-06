@@ -12,13 +12,13 @@ base-devel
 bash
 bc
 bind-tools
-brltty
 broadcom-wl
 btrfs-progs
 bzip2
 clonezilla
 cloud-guest-utils
 cloud-init
+cockpit
 coreutils
 crda
 cryptsetup
@@ -115,6 +115,7 @@ net-tools
 netplan
 nettle
 nfs-utils
+nginx
 nmap
 ntfs-3g
 ntfsprogs
@@ -147,6 +148,7 @@ sudo
 sysfsutils
 syslinux
 sysstat
+systemd
 systemd-resolvconf
 tar
 tcl

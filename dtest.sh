@@ -8,7 +8,8 @@ ZFS_BOOT_POOL="${TGT_HOSTNAME}_zboot"
 SYS_FS="sys"
 DATA_FS="data"
 SYS_ROOT="${ROOT_POOL}/${SYS_FS}"
-SYS_NAME="arch" MNT_DIR="/mnt"
+SYS_NAME="arch"
+MNT_DIR="/mnt"
 TGT_TIME_ZONE="../usr/share/zoneinfo/America/Denver"
 archzfs_pgp_key="F75D9D76"
 
@@ -312,15 +313,29 @@ do_configure() {
 	PACMAN_MIRRORS
 
 	msg "Setting language to: $TGT_LANGUAGE"
-	echo "en_US.UTF-8 UTF-8" >> ${MNT_DIR}/etc/locale.gen
+	sed -i 's/#en_US.UTF-8/en_US.UTF-8/g' ${MNT_DIR}/etc/locale.gen
 	echo "LANG=en_US.UTF-8" >> ${MNT_DIR}/etc/locale.conf
+	arch-chroot /mnt locale-gen
 
 	msg "Configuring mkinitcpio"
 	mv ${MNT_DIR}/etc/mkinitcpio.conf ${MNT_DIR}/etc/mkinitcpio.conf.original
 	tee ${MNT_DIR}/etc/mkinitcpio.conf <<-MKINIT_EOF
 	HOOKS=(base udev autodetect modconf block keyboard zfs filesystems)
 	MKINIT_EOF
-
+	# Enable root ssh
+	sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' ${MNT_DIR}/etc/ssh/sshd_config
+	systemctl enable sshd.service --root=${MNT_DIR}
+	systemctl enable systemd-timesyncd --root=${MNT_DIR}
+	zgenhostid -f -o ${MNT_DIR}/etc/hostid
+	arch-chroot ${MNT_DIR} pacman-key -r DDF7DB817396A49B2A2723F7403BD972F75D9D76
+	arch-chroot ${MNT_DIR} pacman-key  --lsign DDF7DB817396A49B2A2723F7403BD972F75D9D76
+	arch-chroot ${MNT_DIR} bootctl install
+	arch-chroot ${MNT_DIR} zpool set cachefile=/etc/zfs/zpool.cache dac_zroot
+	arch-chroot ${MNT_DIR} zpool set cachefile=/etc/zfs/zpool.cache dac_zboot
+	systemctl enable zfs.target zfs-import-cache.service zfs-mount.service zfs-import.target --root=${MNT_DIR}
+	arch-chroot ${MNT_DIR} mkinitcpio -P
+#	umount -R ${MNT_DIR}
+#	zpool export -a
 }
 
 get_disk_list
@@ -339,3 +354,5 @@ ls -lah /dev/disk/by-id/wwn-0x5000c500* | grep part | awk -F '/' '{print $5 "  "
 
 echo "Stop at $(date)" >>$LOG_FILE
 
+#pacman-key -r DDF7DB817396A49B2A2723F7403BD972F75D9D76
+# pacman-key --lsign DDF7DB817396A49B2A2723F7403BD972F75D9D76
