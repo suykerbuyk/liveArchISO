@@ -37,5 +37,5 @@ echo "johns:johns"|chpasswd
 # Enable ssh
 systemctl enable sshd.service
 # grab latest alis
-git clone https://github.com/picodotdev/alis.git /root/alis
+#git clone https://github.com/picodotdev/alis.git /root/alis
 #pacman -Sy
