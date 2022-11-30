@@ -2,14 +2,18 @@
 set -e
 
 
-TGT_HOSTNAME="dac"
+TGT_HOSTNAME="wrx"
 ZFS_ROOT_POOL="${TGT_HOSTNAME}_zroot"
 ZFS_BOOT_POOL="${TGT_HOSTNAME}_zboot"
+#DEFAULT_DISK_FILTER="XS3840"
+DEFAULT_DISK_FILTER="HFS960G32MED"
 SYS_FS="sys"
 DATA_FS="data"
 SYS_ROOT="${ROOT_POOL}/${SYS_FS}"
 SYS_NAME="arch"
-MNT_DIR="/mnt"
+DIR_MNT="/mnt"
+DIR_BOOT="${DIR_MNT}/boot"
+DIR_ESP="${DIR_BOOT}/esp"
 TGT_TIME_ZONE="../usr/share/zoneinfo/America/Denver"
 archzfs_pgp_key="F75D9D76"
 
@@ -119,11 +123,10 @@ capture () {
 
 get_disk_list() {
 	MENU_FILE=$(mktemp "/tmp/part_menu.XXXXX")
-	DEFAULT_DISK_FILTER="XS3840"
 	DISK_FILTER="${1:-$DEFAULT_DISK_FILTER}"
 	
 	declare -a DISK_ARRAY
-	for DEV in "$(lsblk -npS -o NAME,VENDOR,MODEL,SIZE)" ; do
+	for DEV in "$(lsblk -npd -o NAME,VENDOR,MODEL,SIZE | grep -v loop)" ; do
 		DISK_ARRAY+=("$DEV")
 	done
 	echo "--clear --checklist \"User the arrows and the space bar to select the drives for the installation system\"" 0 0 5 >${MENU_FILE}
@@ -150,16 +153,19 @@ get_disk_list() {
 		DSK=$(echo "{$DISK_ARRAY[@]}" | sed "${IDX}q;d" \
 			| awk -F ' ' '{print $1}' \
 			| awk -F '/' '{print $3}')
-		DEV=$( find /dev/disk/by-id -lname ../../${DSK}\
-			| grep -v part | sort -r | head -1)
+		echo "DISK=$DSK"
+		# To get wwn's, sort -r (reversed). 
+		DEV=$( find /dev/disk/by-id -lname ../../${DSK} \
+			| grep -v part | sort | head -1)
+		echo "DEV=$DEV"
+
 		DRV_LIST+=($DEV)
 	done
 	IFS="${OLD_IFS}"
 	[ -f "${MENU_FILE}" ] && rm "${MENU_FILE}"
 }
 prepare_for_start() {
-	#for MNT in $(mount -l | grep ${MNT_DIR} ) ; do 
-	for MNT in $(cat /proc/mounts | grep ${MNT_DIR} | awk '{print $2}' | sort -r) ; do 
+	for MNT in $(cat /proc/mounts | grep ${DIR_MNT} | awk '{print $2}' | sort -r) ; do 
 		run "umount ${MNT}" || true
 	done
 	zpool destroy ${ZFS_BOOT_POOL} || true
@@ -213,8 +219,8 @@ create_file_systems() {
 	
 	msg "Creating ${ZFS_ROOT_POOL} pool"
 
-	run "zpool create -f ${ZFS_BOOT_ATTRS} -R ${MNT_DIR} ${ZFS_BOOT_POOL} raidz2 $ZFS_BOOT_VDEVS"
-	run "zpool create -f ${ZFS_ROOT_ATTRS} -R ${MNT_DIR} ${ZFS_ROOT_POOL} raidz2 $ZFS_ROOT_VDEVS"
+	run "zpool create -f ${ZFS_BOOT_ATTRS} -R ${DIR_MNT} ${ZFS_BOOT_POOL} raidz2 $ZFS_BOOT_VDEVS"
+	run "zpool create -f ${ZFS_ROOT_ATTRS} -R ${DIR_MNT} ${ZFS_ROOT_POOL} raidz2 $ZFS_ROOT_VDEVS"
 	# Create container datasets
 	run "zfs create -o canmount=off -o mountpoint=none ${ZFS_BOOT_POOL}/BOOT"
 	run "zfs create -o canmount=off -o mountpoint=none ${ZFS_ROOT_POOL}/ROOT"
@@ -223,8 +229,8 @@ create_file_systems() {
 	run "zfs create -o mountpoint=legacy -o canmount=noauto ${ZFS_BOOT_POOL}/BOOT/default"
 	run "zfs create -o mountpoint=/      -o canmount=noauto ${ZFS_ROOT_POOL}/ROOT/default"
 	run "zfs mount ${ZFS_ROOT_POOL}/ROOT/default"
-	run "mkdir ${MNT_DIR}/boot"
-	run "mount -t zfs ${ZFS_BOOT_POOL}/BOOT/default ${MNT_DIR}/boot"
+	run "mkdir ${DIR_MNT}/boot"
+	run "mount -t zfs ${ZFS_BOOT_POOL}/BOOT/default ${DIR_MNT}/boot"
 
 	# Creates datasets within the root file system
 	msg "Creating system data sets"
@@ -242,14 +248,14 @@ create_file_systems() {
 	do
 		run "zfs create -o canmount=on ${ZFS_ROOT_POOL}/DATA/default/$i"
 	done
-	run "chmod 750  ${MNT_DIR}/root"
-	run "chmod 1777 ${MNT_DIR}/var/tmp"
+	run "chmod 750  ${DIR_MNT}/root"
+	run "chmod 1777 ${DIR_MNT}/var/tmp"
 	msg "Creating first efi system partition"
 	# Format and mount EFI system partition
 	run "mkfs.vfat -n EFI ${EFI_PARTS[0]}"
-	run "mkdir ${MNT_DIR}/boot/efi"
+	run "mkdir ${DIR_MNT}/boot/efi"
 	# We'll tend to the other efi parts later...	
-	run "mount -t vfat ${EFI_PARTS[0]} ${MNT_DIR}/boot/efi"
+	run "mount -t vfat ${EFI_PARTS[0]} ${DIR_MNT}/boot/efi"
 }
 generate_mounts() {
 # tab-separated zfs properties
@@ -262,23 +268,23 @@ PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
 ,org.openzfs.systemd:wanted-by,org.openzfs.systemd:required-by\
 ,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore"
 
-	mkdir -p ${MNT_DIR}/etc/zfs/zfs-list.cache
+	mkdir -p ${DIR_MNT}/etc/zfs/zfs-list.cache
 
 	zfs list -H -t filesystem -o $PROPS -r ${ZFS_ROOT_POOL} \
-	> ${MNT_DIR}/etc/zfs/zfs-list.cache/${ZFS_ROOT_POOL}
+	> ${DIR_MNT}/etc/zfs/zfs-list.cache/${ZFS_ROOT_POOL}
 
-	sed -Ei "s|${MNT_DIR}/?|/|" ${MNT_DIR}/etc/zfs/zfs-list.cache/*
+	sed -Ei "s|${DIR_MNT}/?|/|" ${DIR_MNT}/etc/zfs/zfs-list.cache/*
 
-	echo ${ZFS_BOOT_POOL}/BOOT/default /boot zfs rw,xattr,posixacl 0 0 >>/${MNT_DIR}/etc/fstab
-	echo UUID=$(blkid -s UUID -o value ${EFI_PARTS[0]}) /boot/efi vfat umask=0022,fmask=0022,dmask=0022 0 1 >> ${MNT_DIR}/etc/fstab
+	echo ${ZFS_BOOT_POOL}/BOOT/default /boot zfs rw,xattr,posixacl 0 0 >>/${DIR_MNT}/etc/fstab
+	echo UUID=$(blkid -s UUID -o value ${EFI_PARTS[0]}) /boot/efi vfat umask=0022,fmask=0022,dmask=0022 0 1 >> ${DIR_MNT}/etc/fstab
 }
 do_install() {
-	pacstrap -C ./local.pacman.conf ${MNT_DIR} $(cat ./packages.x86_64 | grep -v '#')
+	pacstrap -C ./local.pacman.conf ${DIR_MNT} $(cat ./packages.x86_64 | grep -v '#')
 }
 
 do_configure() {
 	msg "Configuring network"
-	cat <<- END_OF_NET_CONF > ${MNT_DIR}/etc/systemd/network/20-ethernet.netwok
+	cat <<- END_OF_NET_CONF > ${DIR_MNT}/etc/systemd/network/20-ethernet.netwok
 	#
 	# SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -294,18 +300,22 @@ do_configure() {
 	RouteMetric=512
 	END_OF_NET_CONF
 	msg "Setting hostname to $TGT_HOSTNAME"
-	echo $TGT_HOSTNAME>/${MNT_DIR}/etc/hostname 
+	echo $TGT_HOSTNAME>/${DIR_MNT}/etc/hostname 
 	msg "Setting time zone to $TGT_TIME_ZONE"
-	ln -s $TGT_TIME_ZONE ${MNT_DIR}/etc/localtime
+	ln -s $TGT_TIME_ZONE ${DIR_MNT}/etc/localtime
 	hwclock --systohc
+	msg "Configuring /etc/hosts"
+	echo "127.0.0.1		localhost">>/${DIR_MNT}/etc/hostname 
+	echo "::1		localhost">>/${DIR_MNT}/etc/hostname 
+	echo "127.0.1.1		$TGT_HOSTNAME">>/${DIR_MNT}/etc/hostname 
 
 	msg "Configuring pacman"
-	tee -a ${MNT_DIR}/etc/pacman.conf <<- 'PACMAN_CONF'
+	tee -a ${DIR_MNT}/etc/pacman.conf <<- 'PACMAN_CONF'
 	[archzfs]
 	Include = /etc/pacman.d/mirrorlist-archzfs
 	PACMAN_CONF
 
-	tee -a ${MNT_DIR}/etc/pacman.d/mirrorlist-archzfs <<- 'PACMAN_MIRRORS'
+	tee -a ${DIR_MNT}/etc/pacman.d/mirrorlist-archzfs <<- 'PACMAN_MIRRORS'
 	Server = https://archzfs.com/$repo/$arch
 	Server = https://mirror.sum7.eu/archlinux/archzfs/$repo/$arch
 	Server = https://mirror.biocrafting.net/archlinux/archzfs/$repo/$arch
@@ -313,31 +323,45 @@ do_configure() {
 	PACMAN_MIRRORS
 
 	msg "Setting language to: $TGT_LANGUAGE"
-	sed -i 's/#en_US.UTF-8/en_US.UTF-8/g' ${MNT_DIR}/etc/locale.gen
-	echo "LANG=en_US.UTF-8" >> ${MNT_DIR}/etc/locale.conf
+	sed -i 's/#en_US.UTF-8/en_US.UTF-8/g' ${DIR_MNT}/etc/locale.gen
+	echo "LANG=en_US.UTF-8" >> ${DIR_MNT}/etc/locale.conf
 	arch-chroot /mnt locale-gen
 
 	msg "Configuring mkinitcpio"
-	mv ${MNT_DIR}/etc/mkinitcpio.conf ${MNT_DIR}/etc/mkinitcpio.conf.original
-	tee ${MNT_DIR}/etc/mkinitcpio.conf <<-MKINIT_EOF
+	mv ${DIR_MNT}/etc/mkinitcpio.conf ${DIR_MNT}/etc/mkinitcpio.conf.original
+	tee ${DIR_MNT}/etc/mkinitcpio.conf <<-MKINIT_EOF
 	HOOKS=(base udev autodetect modconf block keyboard zfs filesystems)
 	MKINIT_EOF
 	# Enable root ssh
-	sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' ${MNT_DIR}/etc/ssh/sshd_config
-	systemctl enable sshd.service --root=${MNT_DIR}
-	systemctl enable systemd-timesyncd --root=${MNT_DIR}
-	zgenhostid -f -o ${MNT_DIR}/etc/hostid
-	arch-chroot ${MNT_DIR} pacman-key -r DDF7DB817396A49B2A2723F7403BD972F75D9D76
-	arch-chroot ${MNT_DIR} pacman-key  --lsign DDF7DB817396A49B2A2723F7403BD972F75D9D76
-	arch-chroot ${MNT_DIR} bootctl install
-	arch-chroot ${MNT_DIR} zpool set cachefile=/etc/zfs/zpool.cache dac_zroot
-	arch-chroot ${MNT_DIR} zpool set cachefile=/etc/zfs/zpool.cache dac_zboot
-	systemctl enable zfs.target zfs-import-cache.service zfs-mount.service zfs-import.target --root=${MNT_DIR}
-	arch-chroot ${MNT_DIR} mkinitcpio -P
-#	umount -R ${MNT_DIR}
+	sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' ${DIR_MNT}/etc/ssh/sshd_config
+	#zgenhostid -f -o ${DIR_MNT}/etc/hostid
+	systemd-machine-id-setup --root=${DIR_MNT}
+	arch-chroot ${DIR_MNT} pacman-key -r DDF7DB817396A49B2A2723F7403BD972F75D9D76
+	arch-chroot ${DIR_MNT} pacman-key  --lsign DDF7DB817396A49B2A2723F7403BD972F75D9D76
+	#arch-chroot ${DIR_MNT} bootctl install
+	bootctl --path=${DIR_MNT}/boot/efi install
+	arch-chroot ${DIR_MNT} mkdir -p "$DIR_ESPECTORY/loader/entries/"
+	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${ZFS_ROOT_POOL}
+	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${ZFS_BOOT_POOL}
+	systemctl enable  --root=${DIR_MNT} \
+		cockpit.service \
+		sshd.service \
+		systemd-timesyncd \
+		zfs-import-cache.service \
+		zfs-import.target \
+		zfs-mount.service \
+		zfs.target
+	arch-chroot ${DIR_MNT} mkinitcpio -P
+	cat <<EOT > "${DIR_ESP}/loader/loader.conf"
+# alis
+timeout 5
+default archlinux.conf
+editor 0
+EOT
+
+#	umount -R ${DIR_MNT}
 #	zpool export -a
 }
-
 get_disk_list
 msg "${#DRV_LIST[@]} disk selected"
 for DRV in  ${DRV_LIST[*]} ; do
@@ -350,7 +374,7 @@ generate_mounts
 do_configure
 
 # Fix broken grub
-ls -lah /dev/disk/by-id/wwn-0x5000c500* | grep part | awk -F '/' '{print $5 "  " $7}' | sed 's/ -> .. //g'  |  while read a; do WWN=$(echo $a | awk -F ' ' '{print $1}'); DEV=$(echo $a | awk -F ' ' '{print $2}'); ln -s /dev/$DEV /dev/$WWN; done
+#ls -lah /dev/disk/by-id/wwn-0x5000c500* | grep part | awk -F '/' '{print $5 "  " $7}' | sed 's/ -> .. //g'  |  while read a; do WWN=$(echo $a | awk -F ' ' '{print $1}'); DEV=$(echo $a | awk -F ' ' '{print $2}'); ln -s /dev/$DEV /dev/$WWN; done
 
 echo "Stop at $(date)" >>$LOG_FILE
 

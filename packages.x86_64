@@ -79,8 +79,8 @@ ipmitool
 iproute2
 iptables
 iputils
-ipw2100-fw
-ipw2200-fw
+#ipw2100-fw
+#ipw2200-fw
 irssi
 iwd
 jfsutils
@@ -112,8 +112,10 @@ nbd
 ncurses
 ndisc6
 net-tools
+netctl
 netplan
 nettle
+networkmanager
 nfs-utils
 nginx
 nmap

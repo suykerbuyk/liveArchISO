@@ -96,7 +96,10 @@ mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel
 cp tmux.conf  ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel/.tmux.conf
 chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/*.sh
 git clone https://github.com/picodotdev/alis.git/  ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/alis
+#cat ${PATH_TO_PROFILE_DESTINATION}/profiledef.sh | grep -v 'cow_spacesize' | sed -e '$ a cow_spacesize=8G' >${PATH_TO_PROFILE_DESTINATION}/profiledef.sh
+#echo "cow_spacesize=8G">>${PATH_TO_PROFILE_DESTINATION}/profiledef.sh
 echo "Launching mkarchiso"
+#echo "mkarchiso -v -w ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ${PATH_TO_THE_OUTPUT_DIRECTORY} -C ${PATH_OF_THIS_FILE}/pacman.conf ${PATH_TO_PROFILE_DESTINATION}"
 sudo mkarchiso -v -w ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ${PATH_TO_THE_OUTPUT_DIRECTORY} -C ${PATH_OF_THIS_FILE}/pacman.conf ${PATH_TO_PROFILE_DESTINATION}
 #echo "Cleaning up"
 #sudo rm -rf "${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}"/*
