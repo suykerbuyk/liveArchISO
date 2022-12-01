@@ -1,4 +1,6 @@
 #!/bin/sh
+#
+#mount -o remount,size=32G /run/archiso/cowspace
 set -e
 
 
