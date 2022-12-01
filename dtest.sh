@@ -181,6 +181,7 @@ prepare_for_start() {
 		done
 		for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 		run "sgdisk --zap-all ${DRV} && wipefs --all ${DRV} " &
+		wait
 	done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
 	msg "Partitioning"
@@ -193,6 +194,7 @@ prepare_for_start() {
 		            -n4:0:0       -t4:8308  -c4:swap ${DRV}" &
 	done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
+	wait
 	msg "Partprobing disk"
 	for DRV in ${DRV_LIST[*]} 
 	do
@@ -204,6 +206,7 @@ prepare_for_start() {
 		BIOS_PARTS+=("${DRV}-part5")
        	done
 	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done
+	wait
 	udevadm trigger
 }
 create_file_systems() {
@@ -341,8 +344,8 @@ do_configure() {
 	#arch-chroot ${DIR_MNT} bootctl install
 	bootctl --path=${DIR_MNT}/boot/efi install
 	arch-chroot ${DIR_MNT} mkdir -p "$DIR_ESPECTORY/loader/entries/"
-	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${ZFS_ROOT_POOL}
-	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${ZFS_BOOT_POOL}
+	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${DIR_ROOT}
+	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${DIR_BOOT}
 	systemctl enable  --root=${DIR_MNT} \
 		cockpit.service \
 		sshd.service \
