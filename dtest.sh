@@ -344,8 +344,8 @@ do_configure() {
 	#arch-chroot ${DIR_MNT} bootctl install
 	bootctl --path=${DIR_MNT}/boot/efi install
 	arch-chroot ${DIR_MNT} mkdir -p "$DIR_ESPECTORY/loader/entries/"
-	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${DIR_ROOT}
-	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${DIR_BOOT}
+	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${ZFS_ROOT_POOL}
+	arch-chroot ${DIR_MNT} zpool set cachefile=/etc/zfs/zpool.cache ${ZFS_BOOT_POOL}
 	systemctl enable  --root=${DIR_MNT} \
 		cockpit.service \
 		sshd.service \
@@ -355,6 +355,7 @@ do_configure() {
 		zfs-mount.service \
 		zfs.target
 	arch-chroot ${DIR_MNT} mkinitcpio -P
+	echo "Working on: ${DIR_ESP}/loader/loader.conf"
 	cat <<EOT > "${DIR_ESP}/loader/loader.conf"
 # alis
 timeout 5
