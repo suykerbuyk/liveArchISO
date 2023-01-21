@@ -97,11 +97,14 @@ linux-lts-headers
 lsscsi
 lvm2
 lynx
+lz4
+lzop
 man-db
 man-pages
 mc
 mdadm
 memtest86+
+memtest86+-efi
 mkinitcpio
 mkinitcpio-archiso
 mkinitcpio-nfs-utils

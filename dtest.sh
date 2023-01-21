@@ -13,7 +13,7 @@ SYS_FS="sys"
 DATA_FS="data"
 SYS_ROOT="${ROOT_POOL}/${SYS_FS}"
 SYS_NAME="arch"
-DIR_MNT="/mnt"
+DIR_MNT="/arch_install"
 DIR_BOOT="${DIR_MNT}/boot"
 DIR_ESP="${DIR_BOOT}/esp"
 #TGT_TIME_ZONE="../usr/share/zoneinfo/America/Denver"
@@ -38,6 +38,10 @@ DRY_RUN=0
 GO_SLOW=0
 LOG_FILE=dtest.log
 echo "Start at $(date)" >$LOG_FILE
+
+
+# Ensure we have our mount point to attach to
+[[ ! -d "${DIR_MNT}" ]] && mkdir -p "${DIR_MNT}"
 
 cat <<- END_OF_PAC_CONF > ./local.pacman.conf
 	[options]
@@ -108,7 +112,7 @@ run() {
 # Run stuff in the ZFS chroot install function with optional message
 chrun() {
     [[ -n "${2}" ]] && msg "arch-chroot ${2}"
-    arch-chroot "${DIR_MNT}" /bin/bash -c "${1}"
+    arch-chroot "${DIR_MNT}" /bin/bash -c "${1}" &>>$LOG_FILE
 }
 
 capture_stderr () {
@@ -169,7 +173,7 @@ get_disk_list() {
 prepare_for_start() {
 	msg "\nRUN: ${FUNCNAME[0]}\n"
 	for MNT in $(cat /proc/mounts | grep ${DIR_MNT} | awk '{print $2}' | sort -r) ; do 
-		run "umount ${MNT}" || true
+		run "umount -r ${MNT}" || true
 	done
 	zpool destroy ${ZFS_BOOT_POOL} || true
 	zpool destroy ${ZFS_ROOT_POOL} || true
@@ -215,6 +219,7 @@ create_file_systems() {
 	partprobe -s
 	udevadm trigger
 	msg "** Formatting boot partitions"
+	# Wait for all parts to appear.
 	for PART in ${EFI_PARTS[*]} ${SWAP_PARTS[*]} ${ROOT_PARTS[*]} ${BOOT_PARTS[*]} 
 	do 
 		X=10
@@ -224,11 +229,11 @@ create_file_systems() {
 			[[ -e $PART ]] && break || sleep .2 && X=$((X-1))
 		done
 	done
-	for PART in ${EFI_PARTS[*]}; do run "mkfs.vfat $PART"; done
-	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done; wait
+	for PART in ${EFI_PARTS[*]}; do run "mkfs.vfat $PART" & done
+	for job in `jobs -p`; do echo "* Waiting for mkfs.vfat job: $job to complete"; wait ${job}; done; wait
 	msg "** Formatting swap partitions"
-	for PART in ${SWAP_PARTS[*]}; do run "mkswap $PART" ; done
-	for job in `jobs -p`; do echo "* Waiting for job: $job to complete"; wait ${job}; done; wait
+	for PART in ${SWAP_PARTS[*]}; do run "mkswap $PART" & done
+	for job in `jobs -p`; do echo "* Waiting for mkswap job: $job to complete"; wait ${job}; done; wait
 	ZFS_VDEVS=""
 	for PART in ${ROOT_PARTS[*]}; do ZFS_ROOT_VDEVS+="$PART "; done
 	for PART in ${BOOT_PARTS[*]}; do ZFS_BOOT_VDEVS+="$PART "; done
@@ -270,8 +275,6 @@ create_file_systems() {
 	run "chmod 750  ${DIR_MNT}/root"
 	run "chmod 1777 ${DIR_MNT}/var/tmp"
 	msg "** Creating first efi system partition"
-	# Format and mount EFI system partition
-	run "mkfs.vfat -n EFI ${EFI_PARTS[0]}"
 	run "mkdir ${DIR_MNT}/boot/esp"
 	# We'll tend to the other efi parts later...	
 	run "mount -t vfat ${EFI_PARTS[0]} ${DIR_ESP}"

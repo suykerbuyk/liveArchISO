@@ -43,6 +43,9 @@ if [ $CLEAN_START == 1 ]; then
 	if [ ! -d "${CACHEDIR}" ] ; then
 		sudo mkdir -p "${CACHEDIR}"
 	fi
+#	if [ ! -d "${PATH_TO_PROFILE_DESTINATION}/airootfs/bin" ] ; then
+#		mkdir -p "${PATH_TO_PROFILE_DESTINATION}/airootfs/bin"
+#	fi
 	sudo rm -rf ${DB_PATH} | true
 	mkdir -p ${DB_PATH}
 	# Download all the needed installation packages.
@@ -54,8 +57,9 @@ if [ $CLEAN_START == 1 ]; then
 	#Make a local repository of our package cache.
 	sudo rm -f "${CACHEDIR}/localcacherepo*"
 	echo "Creating repo database "
-	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.zst &>repo-add.log
-	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.xz &>>repo-add.log
+	#sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.zst &>repo-add.log
+	#sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.xz &>>repo-add.log
+	sudo repo-add ${CACHEDIR}/localcacherepo.db.tar.gz ${CACHEDIR}/*.xz ${CACHEDIR}/*.zst &>>repo-add.log
 	cp -r ${PATH_TO_THE_PROFILE_SOURCE}/* ${PATH_TO_PROFILE_DESTINATION}/
 	# Enable the serial port for UEFI/Systemd boot.
 	#AMEND='console=tty0 console=ttyS1,115200 text debug log.nologo'
@@ -77,15 +81,16 @@ cp pacman.conf     ${PATH_TO_PROFILE_DESTINATION}/pacman.conf
 cp pacman.conf     ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
 cp installer.sh    ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
 cp dtest.sh        ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
-cp alez.sh         ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+#cp alez.sh         ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
 chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/installer.sh
 chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/dtest.sh
-chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/alez.sh
+#chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/alez.sh
+arch-chroot ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/ "systemctl enable cockpit.service"
+arch-chroot ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}/x86_64/airootfs/ "chmod +x /root/*.sh"
 YAY=$(which yay)
 if [ 0 -eq $? ]; then
-	cp "$YAY" ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
-	chmod 755 ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/yay
-	chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/yay
+	cp "$YAY" ${PATH_TO_PROFILE_DESTINATION}/airootfs/bin/
+	chmod 755 ${PATH_TO_PROFILE_DESTINATION}/airootfs/bin/yay
 else
 	echo "yay not installed on host."
 fi
@@ -95,11 +100,16 @@ rsync -ar ${CACHEDIR}/ ${PATH_TO_PROFILE_DESTINATION}/airootfs/${CACHEDIR}
 mkdir -p ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel
 cp tmux.conf  ${PATH_TO_PROFILE_DESTINATION}/airootfs/etc/skel/.tmux.conf
 chmod +x ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/*.sh
-git clone https://github.com/picodotdev/alis.git/  ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/alis
+#git clone https://github.com/picodotdev/alis.git/  ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/alis
+
+if [ ! -d "./alis" ] ; then
+	git clone https://github.com/picodotdev/alis.git/ .
+fi
+rsync -avr ./alis  ${PATH_TO_PROFILE_DESTINATION}/airootfs/root/
+rsync -v ./tm  ${PATH_TO_PROFILE_DESTINATION}/airootfs/bin/tm
 #cat ${PATH_TO_PROFILE_DESTINATION}/profiledef.sh | grep -v 'cow_spacesize' | sed -e '$ a cow_spacesize=8G' >${PATH_TO_PROFILE_DESTINATION}/profiledef.sh
 #echo "cow_spacesize=8G">>${PATH_TO_PROFILE_DESTINATION}/profiledef.sh
 echo "Launching mkarchiso"
-#echo "mkarchiso -v -w ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ${PATH_TO_THE_OUTPUT_DIRECTORY} -C ${PATH_OF_THIS_FILE}/pacman.conf ${PATH_TO_PROFILE_DESTINATION}"
 sudo mkarchiso -v -w ${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY} -o ${PATH_TO_THE_OUTPUT_DIRECTORY} -C ${PATH_OF_THIS_FILE}/pacman.conf ${PATH_TO_PROFILE_DESTINATION}
 #echo "Cleaning up"
 #sudo rm -rf "${PATH_TO_THE_DYNAMIC_DATA_DIRECTORY}"/*
