@@ -239,8 +239,8 @@ create_file_systems() {
 	for PART in ${BOOT_PARTS[*]}; do ZFS_BOOT_VDEVS+="$PART "; done
 	
 	msg "** Creating ${ZFS_ROOT_POOL} pool"
-	run "zpool create -f ${ZFS_BOOT_ATTRS} -R ${DIR_MNT} ${ZFS_BOOT_POOL} raidz2 $ZFS_BOOT_VDEVS"
 	run "zpool create -f ${ZFS_ROOT_ATTRS} -R ${DIR_MNT} ${ZFS_ROOT_POOL} raidz2 $ZFS_ROOT_VDEVS"
+	run "zpool create -f ${ZFS_BOOT_ATTRS} -R ${DIR_BOOT} ${ZFS_BOOT_POOL} raidz2 $ZFS_BOOT_VDEVS"
 	# Create container datasets
 	msg "** Creating container data sets"
 	run "zfs create -o canmount=off -o mountpoint=none ${ZFS_BOOT_POOL}/BOOT"
