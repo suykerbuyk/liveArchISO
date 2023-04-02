@@ -94,6 +94,8 @@ linux-firmware
 linux-headers
 linux-lts
 linux-lts-headers
+linux-firmware-bnx2x
+lshw
 lsscsi
 lvm2
 lynx
