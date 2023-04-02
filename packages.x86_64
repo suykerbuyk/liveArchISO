@@ -138,6 +138,7 @@ parted
 partimage
 ppp
 pptpclient
+rdma-core
 reflector
 reiserfsprogs
 rp-pppoe
