@@ -12,6 +12,7 @@ base-devel
 bash
 bc
 bind-tools
+bolt
 broadcom-wl
 btrfs-progs
 bzip2
@@ -72,8 +73,10 @@ grub
 gzip
 haveged
 hdparm
+htop
 icu
 intel-ucode
+amd-ucode
 iperf3
 ipmitool
 iproute2
@@ -91,11 +94,13 @@ linux
 linux-api-headers
 linux-atm
 linux-firmware
+linux-firmware-mellanox
 linux-headers
 linux-lts
 linux-lts-headers
 linux-firmware-bnx2x
 lshw
+lsof
 lsscsi
 lvm2
 lynx
